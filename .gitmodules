@@ -1,0 +1,15 @@
+[submodule "libs/PyRep"]
+	path = slot_diffusion_policy/libs/PyRep
+	url = https://github.com/stepjam/PyRep.git
+[submodule "libs/RLBench"]
+	path = slot_diffusion_policy/libs/RLBench
+	url = https://github.com/MohitShridhar/RLBench.git
+[submodule "libs/YARR"]
+	path = slot_diffusion_policy/libs/YARR
+    url = https://github.com/NVlabs/YARR.git
+[submodule "libs/peract"]
+	path = slot_diffusion_policy/libs/peract
+    url = https://github.com/NVlabs/peract.git
+[submodule "libs/peract_colab/peract_colab"]
+    path = slot_diffusion_policy/libs/peract_colab/peract_colab
+    url = https://github.com/peract/peract_colab.git

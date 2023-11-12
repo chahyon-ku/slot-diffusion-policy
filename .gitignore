@@ -1,0 +1,5 @@
+*.egg-info
+data
+models*
+slot_diffusion_policy/lib
+*__pycache__*
