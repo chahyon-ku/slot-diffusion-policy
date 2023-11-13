@@ -1,7 +1,7 @@
 # https://github.com/evelinehong/slot-attention-pytorch/blob/master/eval.ipynb
 from slot_diffusion_policy.dataset.rlbench_slot_dataset import RlbenchSlotDataset
 import matplotlib.pyplot as plt
-from slot_diffusion_policy.model.slot_attention2 import SlotAttentionAutoEncoder
+from slot_diffusion_policy.model.slot_transport import SlotAttentionAutoEncoder
 import torch
 from tqdm import tqdm
 
@@ -16,7 +16,7 @@ if __name__ == '__main__':
 
     with torch.inference_mode():
         model = SlotAttentionAutoEncoder(resolution, num_slots, num_iterations, 64)
-        model.load_state_dict(torch.load('./models2/model990.ckpt')['model_state_dict'])
+        model.load_state_dict(torch.load('./models3/model100000.ckpt')['model_state_dict'])
         model = model.to(device)
 
         dataset = RlbenchSlotDataset(

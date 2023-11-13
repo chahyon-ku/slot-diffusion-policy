@@ -25,20 +25,18 @@ class RlbenchSlotDataset(torch.utils.data.Dataset):
                 with open(os.path.join(episode_dir, 'variation_number.pkl'), 'rb') as f:
                     variation_number = pickle.load(f)
 
-                print(low_dim_obs.__dict__)
+                # print(low_dim_obs.__dict__)
                 episode = []
                 for i_obs, obs in enumerate(low_dim_obs._observations):
-                    sample = {}
-                    sample['task'] = task
-                    sample['i_eps'] = i_eps
-                    sample['i_obs'] = i_obs
-                    sample['variation_number'] = variation_number
-                    sample['variation_descriptions'] = variation_descriptions
-                    sample['views'] = {}
-
                     for view in views:
-                        sample['views'][view] = os.path.join(episode_dir, view, f'{i_obs}.png')
-                    episode.append(sample)
+                        sample = {}
+                        sample['task'] = task
+                        sample['i_eps'] = i_eps
+                        sample['i_obs'] = i_obs
+                        sample['variation_number'] = variation_number
+                        sample['variation_description'] = variation_descriptions[0]
+                        sample['image'] = os.path.join(episode_dir, view, f'{i_obs}.png')
+                        episode.append(sample)
                 
                 if is_pairs:
                     new_episode = [
@@ -64,16 +62,8 @@ class RlbenchSlotDataset(torch.utils.data.Dataset):
         return sample
     
     def _process_sample(self, sample):
-        for view, path in sample['views'].items():
-            image = Image.open(path)
-            if 'depth' in view:
-                sample['views'][view] = rlbench.backend.utils.image_to_float_array(
-                    Image.open(path),
-                    rlbench.backend.const.DEPTH_SCALE
-                )[...].astype(np.float32)
-            else:
-                sample['views'][view] = np.array(
-                    Image.open(path),
-                    dtype=np.float32
-                ).transpose((2, 0, 1)) / 255.0
+        sample['image'] = np.array(
+            Image.open(sample['image']),
+            dtype=np.float32
+        ).transpose((2, 0, 1)) / 255.0
         return sample

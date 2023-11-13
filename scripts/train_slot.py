@@ -1,6 +1,7 @@
 # modified from https://github.com/evelinehong/slot-attention-pytorch/blob/master/train.py
 import os
 import argparse
+from matplotlib import pyplot as plt
 from slot_diffusion_policy.dataset.rlbench_slot_dataset import RlbenchSlotDataset
 from slot_diffusion_policy.model.slot_attention import SlotAttentionAutoEncoder
 from torch import nn
@@ -9,50 +10,38 @@ import time
 import datetime
 import torch.optim as optim
 import torch
+import hydra
+from hydra.core.hydra_config import HydraConfig
+from omegaconf import OmegaConf
+import wandb
+import torchvision
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
 
-if __name__ == '__main__':
-
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('--model_dir', default='./models/', type=str, help='where to save models' )
-    parser.add_argument('--seed', default=0, type=int, help='random seed')
-    parser.add_argument('--batch_size', default=16, type=int)
-    parser.add_argument('--num_slots', default=7, type=int, help='Number of slots in Slot Attention.')
-    parser.add_argument('--num_iterations', default=3, type=int, help='Number of attention iterations.')
-    parser.add_argument('--hid_dim', default=64, type=int, help='hidden dimension size')
-    parser.add_argument('--learning_rate', default=0.0004, type=float)
-    parser.add_argument('--warmup_steps', default=10000, type=int, help='Number of warmup steps for the learning rate.')
-    parser.add_argument('--decay_rate', default=0.5, type=float, help='Rate for the learning rate decay.')
-    parser.add_argument('--decay_steps', default=100000, type=int, help='Number of steps for the learning rate decay.')
-    parser.add_argument('--num_workers', default=4, type=int, help='number of workers for loading data')
-    parser.add_argument('--num_epochs', default=1000, type=int, help='number of workers for loading data')
-
-    opt = parser.parse_args()
-    resolution = (128, 128)
-    os.makedirs(opt.model_dir, exist_ok=True)
-
-    train_set = RlbenchSlotDataset(
-        data_dir='/media/rpm/Data/imitation_learning/slot-diffusion-policy/data/train',
-        tasks=['reach_and_drag'],
-        views=['front_rgb']
-    )
-    model = SlotAttentionAutoEncoder(resolution, opt.num_slots, opt.num_iterations, opt.hid_dim).to(device)
-    # model.load_state_dict(torch.load('./tmp/model6.ckpt')['model_state_dict'])
+@hydra.main(version_base=None, config_path='../configs', config_name='train_slot')
+def main(cfg):
+    output_dir = HydraConfig.get().run.dir
 
     criterion = nn.MSELoss()
-
+    train_dataset = hydra.utils.instantiate(cfg.train_dataset)
+    train_dataloader = hydra.utils.instantiate(cfg.train_dataloader, dataset=train_dataset)
+    val_dataset = hydra.utils.instantiate(cfg.val_dataset)
+    val_dataloader = hydra.utils.instantiate(cfg.val_dataloader, dataset=val_dataset)
+    model = hydra.utils.instantiate(cfg.model)
+    model = model.to(cfg.train.device)
     params = [{'params': model.parameters()}]
-
-    train_dataloader = torch.utils.data.DataLoader(train_set, batch_size=opt.batch_size,
-                            shuffle=True, num_workers=opt.num_workers)
-
-    optimizer = optim.Adam(params, lr=opt.learning_rate)
+    optim = hydra.utils.instantiate(cfg.optim, params)
+    
+    wandb.login()
+    run = wandb.init(
+        dir=output_dir,
+        config=OmegaConf.to_container(cfg, resolve=True),
+        id=os.path.basename(output_dir),
+        **cfg.wandb
+    )
 
     start = time.time()
     i = 0
-    for epoch in range(opt.num_epochs):
+    for epoch in range(cfg.train.num_epochs):
         model.train()
 
         total_loss = 0
@@ -60,34 +49,59 @@ if __name__ == '__main__':
         for sample in tqdm(train_dataloader):
             i += 1
 
-            if i < opt.warmup_steps:
-                learning_rate = opt.learning_rate * (i / opt.warmup_steps)
+            if i < cfg.train.warmup_steps:
+                learning_rate = cfg.optim.lr * (i / cfg.train.warmup_steps)
             else:
-                learning_rate = opt.learning_rate
+                learning_rate = cfg.optim.lr
 
-            learning_rate = learning_rate * (opt.decay_rate ** (
-                i / opt.decay_steps))
+            learning_rate = learning_rate * (cfg.train.decay_rate ** (
+                i / cfg.train.decay_steps))
 
-            optimizer.param_groups[0]['lr'] = learning_rate
+            optim.param_groups[0]['lr'] = learning_rate
             
-            image = sample['views']['front_rgb'].to(device)
+            image = sample['image'].to(cfg.train.device)
             recon_combined, recons, masks, slots = model(image)
             loss = criterion(recon_combined, image)
             total_loss += loss.item()
 
-            del recons, masks, slots
-
-            optimizer.zero_grad()
+            optim.zero_grad()
             loss.backward()
-            optimizer.step()
+            optim.step()
 
-        total_loss /= len(train_dataloader)
+            if i % 1000 == 0:
+                torch.save({
+                'model_state_dict': model.state_dict(),
+                }, os.path.join(output_dir, f'model-e{epoch}-s{i}.ckpt'))
+                with torch.no_grad():
+                    val_loss = 0
+                    for sample in tqdm(val_dataloader):
+                        image = sample['image'].to(cfg.train.device)
+                        recon_combined, recons, masks, slots = model(image)
+                        loss = criterion(recon_combined, image)
+                        val_loss += loss.item()
+                
+                # display reconsturcted images and each slots
+                image = image[:4]
+                recon_combined = recon_combined[:4]
+                recons = recons[:4]
+                masks = masks[:4]
+                image = torchvision.utils.make_grid(image, 1)
+                recon_combined = torchvision.utils.make_grid(recon_combined, 1)
+                recons = recons * masks + (1 - masks)
+                recons = recons.reshape(-1, *recons.shape[-3:]).permute(0,3,1,2)
+                recons = torchvision.utils.make_grid(recons, masks.shape[1])
+                all_images = torch.cat([image, recon_combined, recons], dim=2)
+                
+                wandb.log({
+                    'train_loss': total_loss,
+                    'val_loss': val_loss,
+                    'learning_rate': learning_rate,
+                    'images': [wandb.Image(all_images)]
+                })
+                total_loss = 0
 
         print ("Epoch: {}, Loss: {}, Time: {}".format(epoch, total_loss,
             datetime.timedelta(seconds=time.time() - start)))
 
-        if not epoch % 10:
-            torch.save({
-                'model_state_dict': model.state_dict(),
-                },
-                os.path.join(opt.model_dir, 'model{}.ckpt'.format(epoch)))
+if __name__ == '__main__':
+    main()

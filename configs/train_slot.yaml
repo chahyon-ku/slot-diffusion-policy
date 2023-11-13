@@ -1,0 +1,42 @@
+hydra:
+  run:
+    dir: ./train/${hydra:job.config_name}-${now:%Y.%m.%d-%H.%M.%S}
+
+defaults:
+  - slot_dataset/rlbench_slot_dataset@_global_/train_dataset
+  - slot_dataset/rlbench_slot_dataset@_global_/val_dataset
+  - slot_model/slot_attention@_global_/model
+  - _self_
+
+train:
+  seed: 0
+  warmup_steps: 10000
+  decay_rate: 0.5
+  decay_steps: 100000
+  num_epochs: 1000
+  device: cuda
+
+optim:
+  _target_: torch.optim.Adam
+  lr: 0.0004
+
+train_dataloader:
+  _target_: torch.utils.data.DataLoader
+  batch_size: 16
+  shuffle: True
+  num_workers: 4
+  persistent_workers: True
+
+val_dataset:
+  data_dir: /media/rpm/Data/imitation_learning/slot-diffusion-policy/data/val
+
+val_dataloader:
+  _target_: torch.utils.data.DataLoader
+  batch_size: 16
+  shuffle: True
+  num_workers: 4
+  persistent_workers: False
+
+wandb:
+  project: train_slot
+  tags: []

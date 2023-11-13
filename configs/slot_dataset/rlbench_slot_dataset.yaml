@@ -1,0 +1,6 @@
+_target_: slot_diffusion_policy.dataset.rlbench_slot_dataset.RlbenchSlotDataset
+data_dir: /media/rpm/Data/imitation_learning/slot-diffusion-policy/data/train
+tasks:
+  - close_jar
+views:
+  - front_rgb

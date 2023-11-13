@@ -175,11 +175,14 @@ class SlotAttentionAutoEncoder(nn.Module):
             eps = 1e-8, 
             hidden_dim = 128)
 
-    def forward(self, src, tgt):
+    def forward(self, src, tgt=None):
         # `image` has shape: [batch_size, num_channels, width, height].
 
         # Convolutional encoder with position embedding.
-        image = torch.cat([src, tgt], dim=0)
+        if tgt is None:
+            image = src
+        else:
+            image = torch.cat([src, tgt], dim=0)
         x = self.encoder_cnn(image)  # CNN Backbone.
         # x = nn.LayerNorm(x.shape[1:])(x)
         x = F.layer_norm(x, x.shape[1:])
@@ -207,9 +210,15 @@ class SlotAttentionAutoEncoder(nn.Module):
 
         # Normalize alpha masks over slots.
         masks = nn.Softmax(dim=1)(masks)
-        feats_src, feats_tgt = feats[:16], feats[16:]
-        masks_src, masks_tgt = masks[:16], masks[16:]
-        feats_recon = (1 - masks_src) * (1 - masks_tgt) * feats_src + masks_src * feats_tgt
+        if tgt is None:
+            feats_recon = feats
+            masks_recon = masks
+        else:
+            feats_src, feats_tgt = feats[:src.shape[0]], feats[src.shape[0]:]
+            masks_src, masks_tgt = masks[:src.shape[0]], masks[src.shape[0]:]
+            masks_recon = masks_tgt
+            feats_recon = (1 - masks_src) * (1 - masks_tgt) * feats_src + masks_src * feats_tgt
+
         feats_recon = feats_recon.reshape((-1, *feats_recon.shape[2:]))
         # `feats_recon` has shape: [batch_size*num_slots, width, height, num_channels].
         feats_recon = feats_recon.permute(0,3,1,2)
@@ -218,9 +227,7 @@ class SlotAttentionAutoEncoder(nn.Module):
         # `recons` has shape: [batch_size*num_slots, width, height, num_channels].
         recons = recons.reshape((-1, self.num_slots, *recons.shape[1:]))
         # `recons` has shape: [batch_size, num_slots, width, height, num_channels].
-
-        # recon_combined = torch.sum(recons * masks, dim=1)  # Recombine image.
-        recon_combined = torch.sum(recons, dim=1)
+        recon_combined = torch.sum(recons * masks_recon, dim=1)
         recon_combined = recon_combined.permute(0,3,1,2)
         # `recon_combined` has shape: [batch_size, width, height, num_channels].
 

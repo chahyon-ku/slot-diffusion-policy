@@ -83,7 +83,7 @@ if __name__ == '__main__':
             loss.backward()
             optimizer.step()
 
-            if not i % 1000:
+            if not i % 5000:
                 torch.save({
                     'model_state_dict': model.state_dict(),
                     },
