@@ -5,14 +5,20 @@ from torch import nn
 import torch.nn.functional as F
 
 class SlotAttention(nn.Module):
-    def __init__(self, num_slots, dim, iters = 3, eps = 1e-8, hidden_dim = 128):
+    def __init__(self, num_slots, dim, iters = 3, eps = 1e-8, hidden_dim = 128, random_slots = False):
         super().__init__()
         self.num_slots = num_slots
         self.iters = iters
         self.eps = eps
         self.scale = dim ** -0.5
+        self.random_slots = random_slots
 
-        self.slots = nn.Parameter(torch.randn(1, num_slots, dim))
+        if self.random_slots:
+            self.slots_mu = nn.Parameter(torch.randn(1, 1, dim))
+            self.slots_sigma = nn.Parameter(torch.rand(1, 1, dim))
+        else:
+            self.slots = nn.Parameter(torch.randn(1, num_slots, dim))
+
 
         self.to_q = nn.Linear(dim, dim)
         self.to_k = nn.Linear(dim, dim)
@@ -33,7 +39,10 @@ class SlotAttention(nn.Module):
         b, n, d = inputs.shape
         n_s = num_slots if num_slots is not None else self.num_slots
         
-        slots = self.slots.expand(b, -1, -1)
+        if self.random_slots:
+            slots = self.slots_mu + self.slots_sigma * torch.randn(b, n_s, d, device=inputs.device)
+        else:
+            slots = self.slots.expand(b, -1, -1)
 
         inputs = self.norm_input(inputs)        
         k, v = self.to_k(inputs), self.to_v(inputs)
@@ -142,7 +151,7 @@ class Decoder(nn.Module):
 
 """Slot Attention-based auto-encoder for object discovery."""
 class SlotAttentionAutoEncoder(nn.Module):
-    def __init__(self, resolution, num_slots, num_iterations, hid_dim):
+    def __init__(self, resolution, num_slots, num_iterations, hid_dim, random_slots):
         """Builds the Slot Attention-based auto-encoder.
         Args:
         resolution: Tuple of integers specifying width and height of input image.
@@ -166,7 +175,9 @@ class SlotAttentionAutoEncoder(nn.Module):
             dim=hid_dim,
             iters = self.num_iterations,
             eps = 1e-8, 
-            hidden_dim = 128)
+            hidden_dim = 128,
+            random_slots = random_slots
+        )
 
     def forward(self, image):
         # `image` has shape: [batch_size, num_channels, width, height].

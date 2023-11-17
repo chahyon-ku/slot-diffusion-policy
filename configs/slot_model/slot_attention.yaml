@@ -2,4 +2,5 @@ _target_: slot_diffusion_policy.model.slot_attention.SlotAttentionAutoEncoder
 resolution: [128, 128]
 num_slots: 7
 num_iterations: 3
-hid_dim: 64
+_dim: 64
+random_slots: False

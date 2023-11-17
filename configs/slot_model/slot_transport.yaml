@@ -1,4 +1,4 @@
-__target__: slot_diffusion_policy.model.slot_attention.SlotAttentionAutoEncoder
+_target_: slot_diffusion_policy.model.slot_transport.SlotAttentionAutoEncoder
 resolution: [128, 128]
 num_slots: 7
 num_iterations: 3

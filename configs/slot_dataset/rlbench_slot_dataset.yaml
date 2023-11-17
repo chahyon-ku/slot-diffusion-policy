@@ -4,3 +4,4 @@ tasks:
   - close_jar
 views:
   - front_rgb
+is_pairs: False

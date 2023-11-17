@@ -5,7 +5,7 @@ hydra:
 defaults:
   - slot_dataset/rlbench_slot_dataset@_global_/train_dataset
   - slot_dataset/rlbench_slot_dataset@_global_/val_dataset
-  - slot_model/slot_attention@_global_/model
+  - slot_model: slot_attention
   - _self_
 
 train:
@@ -14,6 +14,7 @@ train:
   decay_rate: 0.5
   decay_steps: 100000
   num_epochs: 1000
+  f_eval: 10000
   device: cuda
 
 optim:
@@ -36,6 +37,7 @@ val_dataloader:
   shuffle: True
   num_workers: 4
   persistent_workers: False
+  drop_last: True
 
 wandb:
   project: train_slot

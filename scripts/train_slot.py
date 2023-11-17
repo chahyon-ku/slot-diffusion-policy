@@ -26,7 +26,7 @@ def main(cfg):
     train_dataloader = hydra.utils.instantiate(cfg.train_dataloader, dataset=train_dataset)
     val_dataset = hydra.utils.instantiate(cfg.val_dataset)
     val_dataloader = hydra.utils.instantiate(cfg.val_dataloader, dataset=val_dataset)
-    model = hydra.utils.instantiate(cfg.model)
+    model = hydra.utils.instantiate(cfg.slot_model)
     model = model.to(cfg.train.device)
     params = [{'params': model.parameters()}]
     optim = hydra.utils.instantiate(cfg.optim, params)
@@ -39,12 +39,11 @@ def main(cfg):
         **cfg.wandb
     )
 
-    start = time.time()
     i = 0
+    total_loss = 0
+    n_totals = 0
     for epoch in range(cfg.train.num_epochs):
         model.train()
-
-        total_loss = 0
 
         for sample in tqdm(train_dataloader):
             i += 1
@@ -59,16 +58,22 @@ def main(cfg):
 
             optim.param_groups[0]['lr'] = learning_rate
             
-            image = sample['image'].to(cfg.train.device)
-            recon_combined, recons, masks, slots = model(image)
+            if 'transport' in cfg.slot_model._target_:
+                src = sample[0]['image'].to(cfg.train.device)
+                image = sample[1]['image'].to(cfg.train.device)
+                recon_combined, recons, masks, slots = model(src, image)
+            else:
+                image = sample['image'].to(cfg.train.device)
+                recon_combined, recons, masks, slots = model(image)
             loss = criterion(recon_combined, image)
             total_loss += loss.item()
+            n_totals += 1
 
             optim.zero_grad()
             loss.backward()
             optim.step()
 
-            if i % 1000 == 0:
+            if i % cfg.train.f_eval == 0:
                 torch.save({
                 'model_state_dict': model.state_dict(),
                 }, os.path.join(output_dir, f'model-e{epoch}-s{i}.ckpt'))
@@ -91,6 +96,9 @@ def main(cfg):
                 recons = recons.reshape(-1, *recons.shape[-3:]).permute(0,3,1,2)
                 recons = torchvision.utils.make_grid(recons, masks.shape[1])
                 all_images = torch.cat([image, recon_combined, recons], dim=2)
+
+                total_loss /= cfg.train.f_eval
+                val_loss /= len(val_dataloader)
                 
                 wandb.log({
                     'train_loss': total_loss,
@@ -99,9 +107,7 @@ def main(cfg):
                     'images': [wandb.Image(all_images)]
                 })
                 total_loss = 0
-
-        print ("Epoch: {}, Loss: {}, Time: {}".format(epoch, total_loss,
-            datetime.timedelta(seconds=time.time() - start)))
+                n_totals = 0
 
 if __name__ == '__main__':
     main()

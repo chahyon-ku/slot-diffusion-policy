@@ -5,12 +5,13 @@ import matplotlib.pyplot as plt
 if __name__ == '__main__':
     dataset = RlbenchSlotDataset(
         data_dir='/media/rpm/Data/imitation_learning/slot-diffusion-policy/data/test',
-        tasks=['reach_and_drag'],
+        tasks=['stack_blocks'],
         views=['front_rgb', 'front_depth']
     )
     
     for i_sample, sample in enumerate(dataset):
         print(sample['i_eps'], sample['i_obs'], sample['variation_number'])
+        print(sample)
         # display rgb and depth images
         plt.figure()
         plt.subplot(1, 2, 1)
