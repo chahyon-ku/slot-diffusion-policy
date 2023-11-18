@@ -3,7 +3,6 @@ import os
 import argparse
 from matplotlib import pyplot as plt
 from slot_diffusion_policy.dataset.rlbench_slot_dataset import RlbenchSlotDataset
-from slot_diffusion_policy.model.slot_attention import SlotAttentionAutoEncoder
 from torch import nn
 from tqdm import tqdm
 import time
@@ -30,6 +29,7 @@ def main(cfg):
     model = model.to(cfg.train.device)
     params = [{'params': model.parameters()}]
     optim = hydra.utils.instantiate(cfg.optim, params)
+    scheduler = hydra.utils.instantiate(cfg.scheduler, optim)
     
     wandb.login()
     run = wandb.init(
@@ -39,75 +39,83 @@ def main(cfg):
         **cfg.wandb
     )
 
-    i = 0
     total_loss = 0
     n_totals = 0
-    for epoch in range(cfg.train.num_epochs):
-        model.train()
+    train_dataloder_iter = iter(train_dataloader)
+    for step in tqdm(list(range(cfg.train.train_steps))):
+        try:
+            batch = next(train_dataloder_iter)
+        except StopIteration:
+            train_dataloder_iter = iter(train_dataloader)
+            batch = next(train_dataloder_iter)
 
-        for sample in tqdm(train_dataloader):
-            i += 1
+        if 'transport' in cfg.slot_model._target_:
+            src = batch[0]['image'].to(cfg.train.device)
+            image = batch[1]['image'].to(cfg.train.device)
+            recon_combined, recons, masks, slots = model(src, image)
+        else:
+            image = batch['image'].to(cfg.train.device)
+            recon_combined, recons, masks, slots = model(image)
+        loss = criterion(recon_combined, image)
+        total_loss += loss.item()
+        n_totals += 1
 
-            if i < cfg.train.warmup_steps:
-                learning_rate = cfg.optim.lr * (i / cfg.train.warmup_steps)
-            else:
-                learning_rate = cfg.optim.lr
+        optim.zero_grad()
+        loss.backward()
+        optim.step()
+        scheduler.step()
 
-            learning_rate = learning_rate * (cfg.train.decay_rate ** (
-                i / cfg.train.decay_steps))
-
-            optim.param_groups[0]['lr'] = learning_rate
+        if step % cfg.train.f_eval == 0:
+            torch.save({
+            'model_state_dict': model.state_dict(),
+            }, os.path.join(output_dir, f'model-s{step}.ckpt'))
             
-            if 'transport' in cfg.slot_model._target_:
-                src = sample[0]['image'].to(cfg.train.device)
-                image = sample[1]['image'].to(cfg.train.device)
-                recon_combined, recons, masks, slots = model(src, image)
-            else:
-                image = sample['image'].to(cfg.train.device)
-                recon_combined, recons, masks, slots = model(image)
-            loss = criterion(recon_combined, image)
-            total_loss += loss.item()
-            n_totals += 1
+            # display reconsturcted images and each slots
+            image = image[:4]
+            recon_combined = recon_combined[:4]
+            recons = recons[:4]
+            masks = masks[:4]
+            image = torchvision.utils.make_grid(image, 1)
+            recon_combined = torchvision.utils.make_grid(recon_combined, 1)
+            recons = recons * masks + (1 - masks)
+            recons = recons.reshape(-1, *recons.shape[-3:])
+            recons = torchvision.utils.make_grid(recons, masks.shape[1])
+            train_all_images = torch.cat([image, recon_combined, recons], dim=2)
 
-            optim.zero_grad()
-            loss.backward()
-            optim.step()
+            with torch.no_grad():
+                val_loss = 0
+                for sample in tqdm(val_dataloader):
+                    image = sample['image'].to(cfg.train.device)
+                    recon_combined, recons, masks, slots = model(image)
+                    loss = criterion(recon_combined, image)
+                    val_loss += loss.item()
+            
+            # display reconsturcted images and each slots
+            image = image[:4]
+            recon_combined = recon_combined[:4]
+            recons = recons[:4]
+            masks = masks[:4]
+            image = torchvision.utils.make_grid(image, 1)
+            recon_combined = torchvision.utils.make_grid(recon_combined, 1)
+            recons = recons * masks + (1 - masks)
+            recons = recons.reshape(-1, *recons.shape[-3:])
+            recons = torchvision.utils.make_grid(recons, masks.shape[1])
+            val_all_images = torch.cat([image, recon_combined, recons], dim=2)
 
-            if i % cfg.train.f_eval == 0:
-                torch.save({
-                'model_state_dict': model.state_dict(),
-                }, os.path.join(output_dir, f'model-e{epoch}-s{i}.ckpt'))
-                with torch.no_grad():
-                    val_loss = 0
-                    for sample in tqdm(val_dataloader):
-                        image = sample['image'].to(cfg.train.device)
-                        recon_combined, recons, masks, slots = model(image)
-                        loss = criterion(recon_combined, image)
-                        val_loss += loss.item()
-                
-                # display reconsturcted images and each slots
-                image = image[:4]
-                recon_combined = recon_combined[:4]
-                recons = recons[:4]
-                masks = masks[:4]
-                image = torchvision.utils.make_grid(image, 1)
-                recon_combined = torchvision.utils.make_grid(recon_combined, 1)
-                recons = recons * masks + (1 - masks)
-                recons = recons.reshape(-1, *recons.shape[-3:]).permute(0,3,1,2)
-                recons = torchvision.utils.make_grid(recons, masks.shape[1])
-                all_images = torch.cat([image, recon_combined, recons], dim=2)
-
-                total_loss /= cfg.train.f_eval
-                val_loss /= len(val_dataloader)
-                
-                wandb.log({
-                    'train_loss': total_loss,
-                    'val_loss': val_loss,
-                    'learning_rate': learning_rate,
-                    'images': [wandb.Image(all_images)]
-                })
-                total_loss = 0
-                n_totals = 0
+            total_loss /= cfg.train.f_eval
+            val_loss /= len(val_dataloader)
+            
+            wandb.log({
+                'train_loss': total_loss,
+                'val_loss': val_loss,
+                'learning_rate': scheduler.get_lr(),
+                'train_images': [wandb.Image(train_all_images)],
+                'val_images': [wandb.Image(val_all_images)],
+            })
+            total_loss = 0
+            n_totals = 0
+            
+            
 
 if __name__ == '__main__':
     main()

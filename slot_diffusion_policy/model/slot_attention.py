@@ -1,4 +1,5 @@
 # https://github.com/untitled-ai/slot_attention/blob/master/slot_attention/model.py
+# https://github.com/google-research/google-research/blob/master/invariant_slot_attention/modules/invariant_attention.py
 from typing import Tuple
 
 import torch
@@ -11,8 +12,18 @@ from slot_diffusion_policy.model.slot_attention_utils import build_grid
 from slot_diffusion_policy.model.slot_attention_utils import conv_transpose_out_shape
 
 
-class SlotAttention(nn.Module):
-    def __init__(self, in_features, num_iterations, num_slots, slot_size, mlp_hidden_size, epsilon=1e-8):
+class InvariantSlotAttention(nn.Module):
+    def __init__(
+            self,
+            in_features,
+            num_iterations,
+            num_slots,
+            slot_size,
+            mlp_hidden_size,
+            resolution,
+            decoder_resolution,
+            epsilon=1e-8
+        ):
         super().__init__()
         self.in_features = in_features
         self.num_iterations = num_iterations
@@ -20,6 +31,8 @@ class SlotAttention(nn.Module):
         self.slot_size = slot_size  # number of hidden layers in slot dimensions
         self.mlp_hidden_size = mlp_hidden_size
         self.epsilon = epsilon
+        self.resolution = resolution
+        self.decoder_resolution = decoder_resolution
 
         self.norm_inputs = nn.LayerNorm(self.in_features)
         # I guess this is layer norm across each slot? should look into this
@@ -39,16 +52,40 @@ class SlotAttention(nn.Module):
             nn.Linear(self.mlp_hidden_size, self.slot_size),
         )
 
+        # Encoder positional encoding
+        self.encoder_pos_embedding = SoftPositionEmbed(self.in_features, self.resolution)
+        self.encoder_out_layer = nn.Sequential(
+            nn.Linear(self.in_features, self.in_features),
+            nn.LeakyReLU(),
+            nn.Linear(self.in_features, self.in_features),
+        )
+
+        # Decoder positional encoding
+        self.decoder_pos_embedding = SoftPositionEmbed(self.in_features, self.decoder_resolution)
+
+        # Slot transport
+        self.grid = build_grid((8, 8)).reshape(-1, 2)
+        self.grid_proj = nn.Linear(2, self.slot_size, bias=False) # TODO: Check bias=False
+
         self.register_buffer(
             "slots_mu",
-            nn.init.xavier_uniform_(torch.zeros((1, 1, self.slot_size)), gain=nn.init.calculate_gain("linear")),
+            nn.init.xavier_uniform_(torch.zeros((1, 1, self.slot_size + 4)), gain=nn.init.calculate_gain("linear")),
         )
         self.register_buffer(
             "slots_log_sigma",
-            nn.init.xavier_uniform_(torch.zeros((1, 1, self.slot_size)), gain=nn.init.calculate_gain("linear")),
+            nn.init.xavier_uniform_(torch.zeros((1, 1, self.slot_size + 4)), gain=nn.init.calculate_gain("linear")),
         )
 
-    def forward(self, inputs: Tensor):
+    def forward(self, encoder_out: Tensor):
+        encoder_out = self.encoder_pos_embedding(encoder_out)
+        # `encoder_out` has shape: [batch_size, filter_size, height, width]
+        encoder_out = torch.flatten(encoder_out, start_dim=2, end_dim=3)
+        # `encoder_out` has shape: [batch_size, filter_size, height*width]
+        encoder_out = encoder_out.permute(0, 2, 1)
+        encoder_out = self.encoder_out_layer(encoder_out)
+        # `encoder_out` has shape: [batch_size, height*width, filter_size]
+        inputs = encoder_out
+
         # `inputs` has shape [batch_size, num_inputs, inputs_size].
         batch_size, num_inputs, inputs_size = inputs.shape
         inputs = self.norm_inputs(inputs)  # Apply layer norm to the input.
@@ -58,9 +95,16 @@ class SlotAttention(nn.Module):
         assert_shape(v.size(), (batch_size, num_inputs, self.slot_size))
 
         # Initialize the slots. Shape: [batch_size, num_slots, slot_size].
-        slots_init = torch.randn((batch_size, self.num_slots, self.slot_size))
+        slots_init = torch.randn((batch_size, self.num_slots, self.slot_size + 4))
         slots_init = slots_init.type_as(inputs)
         slots = self.slots_mu + self.slots_log_sigma.exp() * slots_init
+
+        grids = self.grid.expand(batch_size, -1, -1)
+        slots, positions, scales = slots.split([self.slot_size, 2, 2], dim=-1)
+        # `grids` has shape: [batch_size, num_slots, 2].
+        # `slots` has shape: [batch_size, num_slots, slot_size].
+        # `positions` has shape: [batch_size, num_slots, 2].
+        # `scales` has shape: [batch_size, num_slots, 2].
 
         # Multiple rounds of attention.
         for _ in range(self.num_iterations):
@@ -95,7 +139,14 @@ class SlotAttention(nn.Module):
             slots = slots + self.mlp(self.norm_mlp(slots))
             assert_shape(slots.size(), (batch_size, self.num_slots, self.slot_size))
 
-        return slots
+        batch_size, num_slots, slot_size = slots.shape
+
+        decoder_in = slots.view(batch_size * num_slots, slot_size, 1, 1)
+        decoder_in = decoder_in.repeat(1, 1, self.decoder_resolution[0], self.decoder_resolution[1])
+        out = self.decoder_pos_embedding(decoder_in)
+        # `out` has shape: [batch_size*num_slots, slot_size, decoder_resolution[0], decoder_resolution[1]].
+
+        return out, slots
 
 
 class SlotAttentionModel(nn.Module):
@@ -142,12 +193,6 @@ class SlotAttentionModel(nn.Module):
             channels = h_dim
 
         self.encoder = nn.Sequential(*modules)
-        self.encoder_pos_embedding = SoftPositionEmbed(self.in_channels, self.out_features, resolution)
-        self.encoder_out_layer = nn.Sequential(
-            nn.Linear(self.out_features, self.out_features),
-            nn.LeakyReLU(),
-            nn.Linear(self.out_features, self.out_features),
-        )
 
         # Build Decoder
         modules = []
@@ -191,14 +236,15 @@ class SlotAttentionModel(nn.Module):
         assert_shape(resolution, (out_size, out_size), message="")
 
         self.decoder = nn.Sequential(*modules)
-        self.decoder_pos_embedding = SoftPositionEmbed(self.in_channels, self.out_features, self.decoder_resolution)
 
-        self.slot_attention = SlotAttention(
+        self.slot_attention = InvariantSlotAttention(
             in_features=self.out_features,
             num_iterations=self.num_iterations,
             num_slots=self.num_slots,
             slot_size=self.slot_size,
             mlp_hidden_size=128,
+            resolution=self.resolution,
+            decoder_resolution=self.decoder_resolution,
         )
 
     def forward(self, x):
@@ -207,28 +253,18 @@ class SlotAttentionModel(nn.Module):
 
         batch_size, num_channels, height, width = x.shape
         encoder_out = self.encoder(x)
-        encoder_out = self.encoder_pos_embedding(encoder_out)
-        # `encoder_out` has shape: [batch_size, filter_size, height, width]
-        encoder_out = torch.flatten(encoder_out, start_dim=2, end_dim=3)
-        # `encoder_out` has shape: [batch_size, filter_size, height*width]
-        encoder_out = encoder_out.permute(0, 2, 1)
-        encoder_out = self.encoder_out_layer(encoder_out)
-        # `encoder_out` has shape: [batch_size, height*width, filter_size]
 
-        slots = self.slot_attention(encoder_out)
-        assert_shape(slots.size(), (batch_size, self.num_slots, self.slot_size))
-        # `slots` has shape: [batch_size, num_slots, slot_size].
-        batch_size, num_slots, slot_size = slots.shape
+        slot_out, slots = self.slot_attention(encoder_out)
+        assert_shape(slot_out.size(), (batch_size * self.num_slots, self.slot_size, self.decoder_resolution[0], self.decoder_resolution[1]))
+        # `slot_out` has shape: [batch_size*num_slots, slot_size, decoder_resolution[0], decoder_resolution[1]].
 
-        slots = slots.view(batch_size * num_slots, slot_size, 1, 1)
-        decoder_in = slots.repeat(1, 1, self.decoder_resolution[0], self.decoder_resolution[1])
-
-        out = self.decoder_pos_embedding(decoder_in)
-        out = self.decoder(out)
+        out = self.decoder(slot_out)
         # `out` has shape: [batch_size*num_slots, num_channels+1, height, width].
-        assert_shape(out.size(), (batch_size * num_slots, num_channels + 1, height, width))
+        # `slots` has shape: [batch_size, num_slots, slot_size].
+        assert_shape(out.size(), (batch_size * self.num_slots, num_channels + 1, height, width))
+        assert_shape(slots.size(), (batch_size, self.num_slots, self.slot_size))
 
-        out = out.view(batch_size, num_slots, num_channels + 1, height, width)
+        out = out.view(batch_size, self.num_slots, num_channels + 1, height, width)
         recons = out[:, :, :num_channels, :, :]
         masks = out[:, :, -1:, :, :]
         masks = F.softmax(masks, dim=1)
@@ -244,9 +280,9 @@ class SlotAttentionModel(nn.Module):
 
 
 class SoftPositionEmbed(nn.Module):
-    def __init__(self, num_channels: int, hidden_size: int, resolution: Tuple[int, int]):
+    def __init__(self, hidden_size: int, resolution: Tuple[int, int]):
         super().__init__()
-        self.dense = nn.Linear(in_features=num_channels + 1, out_features=hidden_size)
+        self.dense = nn.Linear(in_features=2, out_features=hidden_size)
         self.register_buffer("grid", build_grid(resolution))
 
     def forward(self, inputs: Tensor):

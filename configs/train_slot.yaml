@@ -10,10 +10,7 @@ defaults:
 
 train:
   seed: 0
-  warmup_steps: 10000
-  decay_rate: 0.5
-  decay_steps: 100000
-  num_epochs: 1000
+  train_steps: 500000
   f_eval: 10000
   device: cuda
 
@@ -21,9 +18,15 @@ optim:
   _target_: torch.optim.Adam
   lr: 0.0004
 
+scheduler:
+  _target_: slot_diffusion_policy.model.slot_scheduler.SlotScheduler
+  warmup_steps: 10000
+  decay_rate: 0.5
+  decay_steps: 100000
+
 train_dataloader:
   _target_: torch.utils.data.DataLoader
-  batch_size: 16
+  batch_size: 64
   shuffle: True
   num_workers: 4
   persistent_workers: True

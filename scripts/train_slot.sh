@@ -7,6 +7,4 @@
 
 
 CUDA_VISIBLE_DEVICES=0 python scripts/train_slot.py\
-        train_dataset.is_pairs=False\
-        slot_model=invariant_slot_attention\
-        train.f_eval=1000\
+        slot_model=slot_autoencoder_small
