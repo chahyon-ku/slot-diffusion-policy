@@ -8,5 +8,6 @@ slot_attention:
   num_slots: 5
   slot_size: 64
   mlp_hidden_size: 128
+  learnable_slots: True
 decoder:
-  _target_: slot_diffusion_policy.model.slot_autoencoder.decoder
+  _target_: slot_diffusion_policy.model.slot_autoencoder.decoder_large

@@ -14,6 +14,7 @@ from hydra.core.hydra_config import HydraConfig
 from omegaconf import OmegaConf
 import wandb
 import torchvision
+from slot_diffusion_policy.model.slot.invariant_slot_attention import InvariantSlotAttention
 
 
 @hydra.main(version_base=None, config_path='../configs', config_name='train_slot')

@@ -6,5 +6,8 @@
 
 
 
+# CUDA_VISIBLE_DEVICES=0 python scripts/train_slot.py\
+#         slot_model=slot_autoencoder_isa
+
 CUDA_VISIBLE_DEVICES=0 python scripts/train_slot.py\
-        slot_model=slot_autoencoder_small
+        slot_model=invariant_slot_autoencoder

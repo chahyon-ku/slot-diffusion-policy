@@ -1,9 +1,0 @@
-_target_: slot_diffusion_policy.model.invariant_slot_attention.SlotAttentionModel
-resolution: [128, 128]
-num_slots: 5
-num_iterations: 3
-kernel_size: 5
-slot_size: 64
-hidden_dims: [64, 64, 64, 64]
-decoder_resolution: [8, 8]
-empty_cache: False

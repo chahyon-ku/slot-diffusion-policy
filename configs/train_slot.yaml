@@ -19,7 +19,7 @@ optim:
   lr: 0.0004
 
 scheduler:
-  _target_: slot_diffusion_policy.model.slot_scheduler.SlotScheduler
+  _target_: slot_diffusion_policy.model.slot.util.SlotScheduler
   warmup_steps: 10000
   decay_rate: 0.5
   decay_steps: 100000
