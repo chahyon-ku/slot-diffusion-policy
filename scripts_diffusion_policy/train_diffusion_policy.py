@@ -11,9 +11,12 @@ import sys
 sys.stdout = open(sys.stdout.fileno(), mode='w', buffering=1)
 sys.stderr = open(sys.stderr.fileno(), mode='w', buffering=1)
 
+sys.path.append('/media/rpm/Data/imitation_learning/slot-diffusion-policy')
+
 import hydra
 from omegaconf import OmegaConf
 import pathlib
+
 from slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.workspace.base_workspace import BaseWorkspace
 
 # allows arbitrary python code execution in configs using the ${eval:''} resolver
@@ -22,7 +25,7 @@ OmegaConf.register_new_resolver("eval", eval, replace=True)
 @hydra.main(
     version_base=None,
     config_path=str(pathlib.Path(__file__).parent.joinpath(
-        'diffusion_policy','config'))
+        '../configs_diffusion_policy'))
 )
 def main(cfg: OmegaConf):
     # resolve immediately so all the ${now:} resolvers

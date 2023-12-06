@@ -1,4 +1,7 @@
-# TODO: Adopt to specific task (Image dataset runner)
+# TODO: The PushT environment for policy rollout/eval is based upon the PyGame environment used to collect demos
+# Need to adapt to CoppeliaSim for the RLBench data
+
+# For now, the eval portion of the training pipeline has been commented out (in sdp_diffusion_policy/workspace/train_diffusion_unet_image_workspace.py)
 
 import wandb
 import numpy as np

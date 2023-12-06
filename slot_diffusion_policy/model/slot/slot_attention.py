@@ -1,3 +1,4 @@
+from slot_diffusion_policy.model.slot.util import ProjectAdd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -29,8 +30,8 @@ class SlotAttention(nn.Module):
 
         # Linear maps for the attention module.
         self.project_q = nn.Linear(self.slot_size, self.slot_size, bias=False)
-        self.project_k = nn.Linear(self.slot_size, self.slot_size, bias=False)
-        self.project_v = nn.Linear(self.slot_size, self.slot_size, bias=False)
+        self.project_k = nn.Linear(self.in_features, self.slot_size, bias=False)
+        self.project_v = nn.Linear(self.in_features, self.slot_size, bias=False)
 
         # Slot update functions.
         self.gru = nn.GRUCell(self.slot_size, self.slot_size)
@@ -42,10 +43,19 @@ class SlotAttention(nn.Module):
 
         # Learnable mu and log_sigma
         if self.learnable_slots:
-            self.slots = nn.Parameter(torch.randn((1, self.num_slots, self.slot_size + 4)))
+            self.slots = nn.Parameter(torch.randn((1, self.num_slots, self.slot_size)))
         else:
-            self.slots_mu = nn.Parameter(nn.init.xavier_uniform_(torch.zeros((1, 1, self.slot_size + 4)), gain=nn.init.calculate_gain("linear")))
-            self.slots_log_sigma = nn.Parameter(nn.init.xavier_uniform_(torch.zeros((1, 1, self.slot_size + 4)), gain=nn.init.calculate_gain("linear")))
+            self.slots_mu = nn.Parameter(nn.init.xavier_uniform_(torch.zeros((1, 1, self.slot_size)), gain=nn.init.calculate_gain("linear")))
+            self.slots_log_sigma = nn.Parameter(nn.init.xavier_uniform_(torch.zeros((1, 1, self.slot_size)), gain=nn.init.calculate_gain("linear")))
+            
+        # positional encoding
+        self.pos_enc = nn.Sequential(
+            ProjectAdd(2, self.slot_size), # B x H*W x C
+            nn.LayerNorm(self.slot_size),
+            nn.Linear(self.slot_size, self.mlp_hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.mlp_hidden_size, self.slot_size),
+        )
 
     def forward(self, inputs):
         # `inputs` has shape [batch_size, num_inputs, inputs_size].
@@ -61,11 +71,9 @@ class SlotAttention(nn.Module):
         if self.learnable_slots:
             slots = self.slots.expand(batch_size, -1, -1)
         else:
-            slots_init = torch.randn((batch_size, self.num_slots, self.slot_size + 4))
+            slots_init = torch.randn((batch_size, self.num_slots, self.slot_size))
             slots_init = slots_init.type_as(inputs)
             slots = self.slots_mu + self.slots_log_sigma.exp() * slots_init
-
-        slots, positions, scales = slots.split([self.slot_size, 2, 2], dim=-1)
 
         # Multiple rounds of attention.
         for _ in range(self.num_iterations):

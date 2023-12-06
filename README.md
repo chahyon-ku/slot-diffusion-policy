@@ -32,9 +32,6 @@ export DISPLAY=:0
 ```
 
 ```bash
-```
-
-```bash
 cd slot_diffusion_policy/lib
 # DiffusionPolicy
 git clone git@github.com:chahyon-ku/sdp-diffusion_policy.git

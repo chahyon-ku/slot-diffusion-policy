@@ -1,8 +1,8 @@
 # Image dataset
 
-name: pusht_image
+name: close_jar_image
 
-image_shape: &image_shape [3, 96, 96]
+image_shape: &image_shape [3, 128, 128]
 shape_meta: &shape_meta
   # acceptable types: rgb, low_dim
   obs:
@@ -10,14 +10,14 @@ shape_meta: &shape_meta
       shape: *image_shape
       type: rgb
     agent_pos:
-      shape: [2]
+      shape: [8]
       type: low_dim
   action:
-    shape: [2]
+    shape: [8]
 
 env_runner:
   # _target_: diffusion_policy.env_runner.pusht_image_runner.PushTImageRunner
-  _target_: scripts_diffusion_policy.env_runner.task_runner.PushTImageRunner
+  _target_: slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.env_runner.pusht_image_runner.PushTImageRunner
   n_train: 6
   n_train_vis: 2
   train_start_seed: 0
@@ -34,11 +34,12 @@ env_runner:
 
 dataset:
   # _target_: diffusion_policy.dataset.pusht_image_dataset.PushTImageDataset
-  _target_: scripts_diffusion_policy.dataset.task_dataset.PushTImageDataset
-  zarr_path: data/pusht/pusht_cchi_v7_replay.zarr
+  _target_: scripts_diffusion_policy.dataset.rlbench_diffusion_dataset.RlbenchImageDataset
+  # TODO: Use front_rgb instead of front_depth
+  zarr_path: data_zarr/train/close_jar/front_depth/data.zarr
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}
   seed: 42
-  val_ratio: 0.02
+  val_ratio: 0 # Set this to 0 for now since the eval environment hasn't been set up yet
   max_train_episodes: 90

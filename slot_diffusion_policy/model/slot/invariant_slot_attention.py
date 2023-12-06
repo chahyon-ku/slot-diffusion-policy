@@ -29,8 +29,8 @@ class InvariantSlotAttention(nn.Module):
 
         # Linear maps for the attention module.
         self.project_q = nn.Linear(self.slot_size, self.slot_size, bias=False)
-        self.project_k = nn.Linear(self.slot_size, self.slot_size, bias=False)
-        self.project_v = nn.Linear(self.slot_size, self.slot_size, bias=False)
+        self.project_k = nn.Linear(self.in_features, self.slot_size, bias=False)
+        self.project_v = nn.Linear(self.in_features, self.slot_size, bias=False)
 
         # Slot update functions.
         self.gru = nn.GRUCell(self.slot_size, self.slot_size)
@@ -43,18 +43,20 @@ class InvariantSlotAttention(nn.Module):
 
         # Learnable mu and log_sigma
         if self.learnable_slots:
-            self.slots = nn.Parameter(torch.randn((1, self.num_slots, self.slot_size + 4)))
+            self.slots = nn.Parameter(torch.randn((1, self.num_slots, self.slot_size)))
+            self.positions = nn.Parameter(2 * torch.rand((1, self.num_slots, 2)) - 1)
+            self.scales = nn.Parameter(0.1 * torch.randn((1, self.num_slots, 2)) + 0.01)
         else:
-            self.slots_mu = nn.Parameter(nn.init.xavier_uniform_(torch.zeros((1, 1, self.slot_size + 4)), gain=nn.init.calculate_gain("linear")))
-            self.slots_log_sigma = nn.Parameter(nn.init.xavier_uniform_(torch.zeros((1, 1, self.slot_size + 4)), gain=nn.init.calculate_gain("linear")))
+            self.slots_mu = nn.Parameter(nn.init.xavier_uniform_(torch.zeros((1, 1, self.slot_size)), gain=nn.init.calculate_gain("linear")))
+            self.slots_log_sigma = nn.Parameter(nn.init.xavier_uniform_(torch.zeros((1, 1, self.slot_size)), gain=nn.init.calculate_gain("linear")))
 
         # positional encoding
         self.pos_enc = nn.Sequential(
-            ProjectAdd(2, 64), # B x H*W x C
-            nn.LayerNorm(64),
-            nn.Linear(64, 64),
+            ProjectAdd(2, self.in_features), # B x H*W x C
+            nn.LayerNorm(self.in_features),
+            nn.Linear(self.in_features, self.mlp_hidden_size),
             nn.ReLU(),
-            nn.Linear(64, 64),
+            nn.Linear(self.mlp_hidden_size, self.slot_size),
         )
 
     def forward(self, inputs):
@@ -75,8 +77,11 @@ class InvariantSlotAttention(nn.Module):
             slots_init = slots_init.type_as(inputs)
             slots = self.slots_mu + self.slots_log_sigma.exp() * slots_init
 
-        slots, positions, scales = slots.split([self.slot_size, 2, 2], dim=-1)
-        positions = torch.clip(positions, -1, 1)
+        # slots, positions, scales = slots.split([self.slot_size, 2, 2], dim=-1)
+        # positions = 2 * torch.rand((batch_size, self.num_slots, 2), dtype=inputs.dtype, device=inputs.device) - 1
+        # scales = 0.1 * torch.randn((batch_size, self.num_slots, 2), dtype=inputs.dtype, device=inputs.device) + 0.1
+        positions = self.positions
+        scales = self.scales
         scales = torch.clip(scales, 0.001, 2)
         # `slots` has shape: [batch_size, num_slots, slot_size].
         # `positions` has shape: [batch_size, num_slots, 2].
@@ -85,7 +90,7 @@ class InvariantSlotAttention(nn.Module):
         # Multiple rounds of attention.
         for i_iter in range(self.num_iterations + 1):
             rel_grids = grids[:, None] - positions[:, :, None]
-            rel_grids = rel_grids / scales[:, :, None]
+            # rel_grids = rel_grids / scales[:, :, None]
             # `rel_grids` has shape: [batch_size, num_slots, num_inputs, 2].
             k_pos = self.pos_enc(torch.cat([k[:, None].expand(-1, self.num_slots, -1, -1), rel_grids], dim=-1))
             v_pos = self.pos_enc(torch.cat([v[:, None].expand(-1, self.num_slots, -1, -1), rel_grids], dim=-1))
@@ -112,8 +117,10 @@ class InvariantSlotAttention(nn.Module):
             # Position and scale update.
             with torch.no_grad():
                 positions = torch.einsum('...qk,...kd->...qd', attn, grids)
-                scales = torch.einsum('...qk,...qkd->...qd', attn, (grids[:, None] - positions[:, :, None]) ** 2)
-                torch.clip(scales, 0.001, 2, out=scales)
+                # scales = torch.einsum('...qk,...qkd->...qd', attn, (grids[:, None] - positions[:, :, None]) ** 2)
+                # # torch.clip(scales, 0.001, 2, out=scales)
+                # # Why output tensor?
+                # scales = torch.clip(scales, 0.001, 2)
 
             # Slot update.
             # GRU is expecting inputs of size (N,H) so flatten batch and slots dimension

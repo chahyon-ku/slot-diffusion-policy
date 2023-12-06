@@ -4,3 +4,7 @@ slot_diffusion_policy/lib
 *__pycache__*
 ckpts
 train
+outputs
+data_zarr
+pusht*
+wandb

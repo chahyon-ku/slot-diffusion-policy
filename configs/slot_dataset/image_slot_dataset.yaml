@@ -1,0 +1,3 @@
+_target_: slot_diffusion_policy.dataset.image_slot_dataset.ImageSlotDataset
+data_dir: /media/rpm/Data/imitation_learning/slot-diffusion-policy/pusht_frames/train
+is_pairs: False

@@ -16,6 +16,8 @@ class RlbenchSlotDataset(torch.utils.data.Dataset):
         self.samples = []
         for task in tasks:
             episode_dirs = glob(os.path.join(data_dir, task, 'all_variations/episodes/*'))
+            if len(episode_dirs) == 0:
+                raise ValueError(f'No episodes found for task {task}')
             for i_eps, episode_dir in enumerate(episode_dirs):
                 # open pickle file low_dim_obs.pkl
                 with open(os.path.join(episode_dir, 'low_dim_obs.pkl'), 'rb') as f:
