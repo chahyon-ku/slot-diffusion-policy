@@ -1,0 +1,60 @@
+# Image dataset
+
+name: close_jar_image
+
+image_shape: &image_shape [3, 128, 128]
+shape_meta: &shape_meta
+  # acceptable types: rgb, low_dim
+  obs:
+    # Should be consistent with the rgb views found in the training set
+    front_rgb:
+      shape: *image_shape
+      type: rgb
+    wrist_rgb:
+      shape: *image_shape
+      type: rgb
+    # left_shoulder_rgb:
+    #   shape: *image_shape
+    #   type: rgb
+    # right_shoulder_rgb:
+    #   shape: *image_shape
+    #   type: rgb
+    state:
+      shape: [8]
+      type: low_dim
+  action:
+    shape: [8]
+
+env_runner:
+  # _target_: diffusion_policy.env_runner.pusht_image_runner.PushTImageRunner
+  # _target_: slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.env_runner.pusht_image_runner.PushTImageRunner
+  _target_: slot_diffusion_policy.rlbench_image_runner.RlbenchImageRunner
+  shape_meta: *shape_meta
+  n_train: 5
+  n_train_vis: 5
+  train_start_seed: 0
+  n_test: 5
+  n_test_vis: 5
+  legacy_test: True
+  test_start_seed: 100000
+  max_steps: 300
+  n_obs_steps: ${n_obs_steps}
+  n_action_steps: ${n_action_steps}
+  fps: 10
+  past_action: ${past_action_visible}
+  n_envs: null
+
+dataset:
+  # _target_: diffusion_policy.dataset.pusht_image_dataset.PushTImageDataset
+  _target_: scripts_diffusion_policy.dataset.rlbench_diffusion_dataset.RlbenchImageDataset
+  # Make sure this is consistent with the dataset you want to be using
+  # zarr_path: data_zarr/train/close_jar/['front_rgb', 'left_shoulder_rgb', 'right_shoulder_rgb']/data.zarr
+  zarr_path: data/zarr/train/close_jar/data.zarr
+  horizon: ${horizon}
+  pad_before: ${eval:'${n_obs_steps}-1'}
+  pad_after: ${eval:'${n_action_steps}-1'}
+  seed: 42
+  val_ratio: 0 # Set this to 0 for now since the eval environment hasn't been set up yet
+  max_train_episodes: 90
+  # Should be consistent with the rgb views found in the training set
+  rgb_views: ['front_rgb', 'wrist_rgb'] #['front_rgb', 'left_shoulder_rgb', 'right_shoulder_rgb']

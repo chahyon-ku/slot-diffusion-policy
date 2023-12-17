@@ -1,8 +1,3 @@
-# TODO: The PushT environment for policy rollout/eval is based upon the PyGame environment used to collect demos
-# Need to adapt to CoppeliaSim for the RLBench data
-
-# For now, the eval portion of the training pipeline has been commented out (in sdp_diffusion_policy/workspace/train_diffusion_unet_image_workspace.py)
-
 import wandb
 import numpy as np
 import torch
@@ -12,19 +7,28 @@ import tqdm
 import dill
 import math
 import wandb.sdk.data_types.video as wv
-from slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.env.pusht.pusht_image_env import PushTImageEnv
+# from slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.env.pusht.pusht_image_env import PushTImageEnv
 from slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.gym_util.async_vector_env import AsyncVectorEnv
 # from diffusion_policy.gym_util.sync_vector_env import SyncVectorEnv
 from slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.gym_util.multistep_wrapper import MultiStepWrapper
 from slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.gym_util.video_recording_wrapper import VideoRecordingWrapper, VideoRecorder
-
 from slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.policy.base_image_policy import BaseImagePolicy
 from slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.common.pytorch_util import dict_apply
 from slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.env_runner.base_image_runner import BaseImageRunner
+from slot_diffusion_policy.rlbench_image_env import RlbenchImageEnv
 
-class PushTImageRunner(BaseImageRunner):
+from rlbench import Environment
+from rlbench.action_modes.action_mode import MoveArmThenGripper
+from rlbench.action_modes.arm_action_modes import EndEffectorPoseViaIK
+from rlbench.action_modes.gripper_action_modes import Discrete
+from rlbench.observation_config import ObservationConfig, CameraConfig
+from rlbench.tasks import CloseJar
+
+
+class RlbenchImageRunner(BaseImageRunner):
     def __init__(self,
             output_dir,
+            shape_meta:dict,
             n_train=10,
             n_train_vis=3,
             train_start_seed=0,
@@ -37,10 +41,11 @@ class PushTImageRunner(BaseImageRunner):
             n_action_steps=8,
             fps=10,
             crf=22,
-            render_size=96,
+            render_size=128,
+            # render_size=96,
             past_action=False,
             tqdm_interval_sec=5.0,
-            n_envs=None
+            n_envs=None,
         ):
         super().__init__(output_dir)
         if n_envs is None:
@@ -48,11 +53,49 @@ class PushTImageRunner(BaseImageRunner):
 
         steps_per_render = max(10 // fps, 1)
         def env_fn():
+            rlbench_env = Environment(
+                action_mode=MoveArmThenGripper(
+                    arm_action_mode=EndEffectorPoseViaIK(),
+                    gripper_action_mode=Discrete()
+                ),
+                dataset_root='data/train',
+                obs_config=ObservationConfig(
+                    left_shoulder_camera=CameraConfig(
+                        rgb=False,
+                        depth=False,
+                        mask=False,
+                    ),
+                    right_shoulder_camera=CameraConfig(
+                        rgb=False,
+                        depth=False,
+                        mask=False,
+                    ),
+                    overhead_camera=CameraConfig(
+                        rgb=False,
+                        depth=False,
+                        mask=False,
+                    ),
+                    wrist_camera=CameraConfig(
+                        rgb=True,
+                        depth=False,
+                        mask=False,
+                    ),
+                    front_camera=CameraConfig(
+                        rgb=True,
+                        depth=False,
+                        mask=False,
+                        image_size=(render_size, render_size),
+                    ),
+                ),
+                headless=True,
+            )
+            # rlbench_taskenv = rlbench_env.get_task(CloseJar)
             return MultiStepWrapper(
                 VideoRecordingWrapper(
-                    PushTImageEnv(
-                        legacy=legacy_test,
-                        render_size=render_size
+                    RlbenchImageEnv(
+                        env=rlbench_env,
+                        shape_meta=shape_meta,
+                        render_obs_key='front_rgb',
                     ),
                     video_recoder=VideoRecorder.create_h264(
                         fps=fps,
@@ -198,7 +241,7 @@ class PushTImageRunner(BaseImageRunner):
                 obs_dict = dict_apply(np_obs_dict, 
                     lambda x: torch.from_numpy(x).to(
                         device=device))
-
+                
                 # run policy
                 with torch.no_grad():
                     action_dict = policy.predict_action(obs_dict)

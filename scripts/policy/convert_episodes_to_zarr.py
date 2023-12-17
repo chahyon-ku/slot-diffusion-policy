@@ -1,5 +1,6 @@
 # Inspired by rlbench_slot_dataset.py and demo_pusht.py
 
+import shutil
 import sys
 
 import numpy as np
@@ -7,11 +8,13 @@ from glob import glob
 import os
 import rlbench
 import pickle
+from PIL import Image
 
 from slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.common.replay_buffer import ReplayBuffer
 
-def convert_dataset_to_zarr(data_dir_parent, mode, task, view, output_dir):
-    output_data_dir = os.path.join(output_dir, mode, task, view, 'data.zarr')
+def convert_dataset_to_zarr(data_dir_parent, mode, task, views, output_dir):
+    output_data_dir = output_dir#os.path.join(output_dir, mode, task, view, 'data.zarr')
+    shutil.rmtree(output_data_dir, ignore_errors=True)
     replay_buffer = ReplayBuffer.create_from_path(output_data_dir, mode = 'a')
     data_dir = os.path.join(data_dir_parent, mode)
 
@@ -35,12 +38,18 @@ def convert_dataset_to_zarr(data_dir_parent, mode, task, view, output_dir):
             #   gripper_joint_positions
             #   gripper_touch_forces
             #   task_low_dim_state
-            print("="*20,"SHAPES", obs.gripper_pose.shape, obs.gripper_joint_positions.shape, obs.gripper_open)
+            # print("="*20,"SHAPES", obs.gripper_pose.shape, obs.gripper_joint_positions.shape, obs.gripper_open)
+            next_obs = low_dim_obs._observations[i_obs+1] if i_obs < len(low_dim_obs._observations)-1 else obs
             data = {
-                'img': os.path.join(episode_dir, view, f'{i_obs}.png'),
-                'state': np.float32(obs.task_low_dim_state),
-                'action': np.float32(obs.get_low_dim_data())
+                # 'state': np.float32(obs.task_low_dim_state),
+                # 'action': np.float32(obs.get_low_dim_data())
+                'state': np.concatenate([obs.gripper_pose, [obs.gripper_open]]),
+                'action': np.concatenate([next_obs.gripper_pose, [next_obs.gripper_open]])
             }
+            data.update({
+                view: np.array(Image.open(os.path.join(episode_dir, view, f'{i_obs}.png')))
+                for view in views
+            })
 
             episode.append(data)
 
@@ -51,5 +60,5 @@ def convert_dataset_to_zarr(data_dir_parent, mode, task, view, output_dir):
         print(f"Added episode {i_eps}")
 
 if __name__ == '__main__':
-    convert_dataset_to_zarr('data', 'train', 'close_jar', 'front_depth', 'data_zarr')
+    convert_dataset_to_zarr('data', 'train', 'close_jar', ['front_rgb', 'wrist_rgb'], 'data/zarr/train/close_jar/data.zarr')
     

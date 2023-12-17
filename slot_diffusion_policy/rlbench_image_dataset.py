@@ -1,5 +1,3 @@
-# TODO: Adopt to specific task (Image dataset)
-
 from typing import Dict
 import torch
 import numpy as np
@@ -21,11 +19,17 @@ class RlbenchImageDataset(BaseImageDataset):
             pad_after=0,
             seed=42,
             val_ratio=0.0,
-            max_train_episodes=None
+            max_train_episodes=None,
+            rgb_views = ['front_rgb']
             ):
         super().__init__()
+
+        self.rgb_obs_keys = rgb_views
+
+        # TODO: MATCH the keys with the views found in the zarr file you want to use
+        keys = ['state', 'action'] + self.rgb_obs_keys
         self.replay_buffer = ReplayBuffer.copy_from_path(
-            zarr_path, keys=['img', 'state', 'action'])
+            zarr_path, keys=keys)
         
         # TODO: Validation and training set assumed to be in same folder; write code to separate them?
         val_mask = get_val_mask(
@@ -64,28 +68,34 @@ class RlbenchImageDataset(BaseImageDataset):
     def get_normalizer(self, mode='limits', **kwargs):
         # TODO: Determine what represents 'action' and 'state' in Observation
         data = {
-            'action': self.replay_buffer['action'],
-            'agent_pos': self.replay_buffer['state'] # [...,:2]
+            'action': self.replay_buffer['action'], # (T, 8)
+            'state': self.replay_buffer['state'] # (T, 8)
         }
         normalizer = LinearNormalizer()
         normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
-        normalizer['image'] = get_image_range_normalizer()
+        for key in self.rgb_obs_keys:
+            normalizer[key] = get_image_range_normalizer()
+        # normalizer['image'] = get_image_range_normalizer()
         return normalizer
 
     def __len__(self) -> int:
         return len(self.sampler)
 
     def _sample_to_data(self, sample):
-        agent_pos = sample['state'] # [:,:2].astype(np.float32)
-        image = np.moveaxis(sample['img'],-1,1)/255
 
+        state = sample['state'].astype(np.float32)
+        # front_rgb = (sample['front_rgb'] / 255).transpose(0, 3, 1, 2).astype(np.float32)
+        action = sample['action'].astype(np.float32)
         data = {
             'obs': {
-                'image': image, # T, 3, 96, 96
-                'agent_pos': agent_pos, # T, 2
+                'state': state, # T, 8
+                # 'front_rgb': front_rgb # T, 3, 128, 128
             },
-            'action': sample['action'].astype(np.float32) # T, 2
+            'action': action # T, 8
         }
+        for key in self.rgb_obs_keys:
+            data['obs'][key] = (sample[key] / 255).transpose(0, 3, 1, 2).astype(np.float32) # T, 3, 128, 128
+
         return data
     
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:

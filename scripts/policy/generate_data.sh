@@ -1,0 +1,1 @@
+python slot_diffusion_policy/lib/RLBench/tools/dataset_generator.py

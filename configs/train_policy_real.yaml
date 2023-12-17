@@ -37,11 +37,13 @@ policy:
     _target_: slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.model.vision.multi_image_obs_encoder.MultiImageObsEncoder
     shape_meta: ${shape_meta}
     rgb_model:
-      _target_: slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.model.vision.model_getter.get_resnet
-      name: resnet18
-      weights: null
+      # _target_: slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.model.vision.model_getter.get_resnet
+      _target_: slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.model.vision.model_getter.get_resnet18_lowres
+      # name: resnet18
+      # weights: null
     resize_shape: null
-    crop_shape: [76, 76]
+    # crop_shape: [76, 76]
+    crop_shape: [112, 112]
     # constant center crop
     random_crop: True
     use_group_norm: True
@@ -100,7 +102,7 @@ training:
   # optimization
   lr_scheduler: cosine
   lr_warmup_steps: 500
-  num_epochs: 10 # 8000
+  num_epochs: 8000
   gradient_accumulate_every: 1
   # EMA destroys performance when used with BatchNorm
   # replace BatchNorm with GroupNorm.

@@ -16,6 +16,7 @@ sys.path.append('/media/rpm/Data/imitation_learning/slot-diffusion-policy')
 import hydra
 from omegaconf import OmegaConf
 import pathlib
+import rlbench
 
 from slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.workspace.base_workspace import BaseWorkspace
 
@@ -24,8 +25,8 @@ OmegaConf.register_new_resolver("eval", eval, replace=True)
 
 @hydra.main(
     version_base=None,
-    config_path=str(pathlib.Path(__file__).parent.joinpath(
-        '../configs_diffusion_policy'))
+    config_path='../configs_diffusion_policy',
+    config_name='train_diffusion_unet_image_workspace',
 )
 def main(cfg: OmegaConf):
     # resolve immediately so all the ${now:} resolvers

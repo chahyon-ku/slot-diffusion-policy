@@ -11,8 +11,8 @@ import matplotlib.pyplot as plt
 
 from slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.common.replay_buffer import ReplayBuffer
 
-def convert_dataset_to_zarr(data_dir_parent, mode, task, view, output_dir):
-    output_data_dir = os.path.join(output_dir, mode, task, view, 'data.zarr')
+def convert_dataset_to_zarr(data_dir_parent, mode, task, views, output_dir):
+    output_data_dir = os.path.join(output_dir, mode, task, str(views), 'data.zarr')
     replay_buffer = ReplayBuffer.create_from_path(output_data_dir, mode = 'a')
     data_dir = os.path.join(data_dir_parent, mode)
 
@@ -28,7 +28,7 @@ def convert_dataset_to_zarr(data_dir_parent, mode, task, view, output_dir):
         
         for i_obs, obs in enumerate(low_dim_obs._observations):
             # Get img, state, and action
-            # Action consists of:
+            # Observation consists of:
             #   joint_velocities
             #   joint_positions
             #   joint_forces
@@ -39,10 +39,14 @@ def convert_dataset_to_zarr(data_dir_parent, mode, task, view, output_dir):
             # print("="*20,"SHAPES", obs.gripper_pose.shape, obs.gripper_open)
             gripper_state = np.float32(np.concatenate([obs.gripper_pose, np.array(obs.gripper_open).reshape(-1,)]))
             data = {
-                'img': np.float32(plt.imread(os.path.join(episode_dir, view, f'{i_obs}.png'))),
+                # 'img': rgb_obs,
                 'state': gripper_state,
                 'action': gripper_state
             }
+            
+            # Append multi-view rgb obs to data dict
+            for view in views:
+                data[view] = np.float32(plt.imread(os.path.join(episode_dir, view, f'{i_obs}.png')))
 
             episode.append(data)
 
@@ -53,5 +57,5 @@ def convert_dataset_to_zarr(data_dir_parent, mode, task, view, output_dir):
         print(f"Added episode {i_eps}")
 
 if __name__ == '__main__':
-    convert_dataset_to_zarr('data', 'train', 'close_jar', 'front_depth', 'data_zarr')
+    convert_dataset_to_zarr('data', 'train', 'close_jar', ['front_rgb', 'left_shoulder_rgb', 'right_shoulder_rgb'], 'data_zarr')
     
