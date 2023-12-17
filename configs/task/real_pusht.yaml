@@ -46,9 +46,10 @@ env_runner:
 
 dataset:
   # _target_: diffusion_policy.dataset.pusht_image_dataset.PushTImageDataset
-  _target_: slot_diffusion_policy.rlbench_image_dataset.RlbenchImageDataset
+  _target_: scripts_diffusion_policy.dataset.rlbench_diffusion_dataset.RlbenchImageDataset
   # Make sure this is consistent with the dataset you want to be using
-  zarr_path: data/rlbench_128/train/close_jar/all_variations/data.zarr
+  # zarr_path: data_zarr/train/close_jar/['front_rgb', 'left_shoulder_rgb', 'right_shoulder_rgb']/data.zarr
+  zarr_path: data/zarr/train/close_jar/data.zarr
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}

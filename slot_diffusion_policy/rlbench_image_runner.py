@@ -7,14 +7,14 @@ import tqdm
 import dill
 import math
 import wandb.sdk.data_types.video as wv
-# from slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.env.pusht.pusht_image_env import PushTImageEnv
-from slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.gym_util.async_vector_env import AsyncVectorEnv
+# from diffusion_policy.env.pusht.pusht_image_env import PushTImageEnv
+from diffusion_policy.gym_util.async_vector_env import AsyncVectorEnv
 # from diffusion_policy.gym_util.sync_vector_env import SyncVectorEnv
-from slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.gym_util.multistep_wrapper import MultiStepWrapper
-from slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.gym_util.video_recording_wrapper import VideoRecordingWrapper, VideoRecorder
-from slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.policy.base_image_policy import BaseImagePolicy
-from slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.common.pytorch_util import dict_apply
-from slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.env_runner.base_image_runner import BaseImageRunner
+from diffusion_policy.gym_util.multistep_wrapper import MultiStepWrapper
+from diffusion_policy.gym_util.video_recording_wrapper import VideoRecordingWrapper, VideoRecorder
+from diffusion_policy.policy.base_image_policy import BaseImagePolicy
+from diffusion_policy.common.pytorch_util import dict_apply
+from diffusion_policy.env_runner.base_image_runner import BaseImageRunner
 from slot_diffusion_policy.rlbench_image_env import RlbenchImageEnv
 
 from rlbench import Environment
@@ -58,7 +58,7 @@ class RlbenchImageRunner(BaseImageRunner):
                     arm_action_mode=EndEffectorPoseViaIK(),
                     gripper_action_mode=Discrete()
                 ),
-                dataset_root='data/train',
+                dataset_root='',
                 obs_config=ObservationConfig(
                     left_shoulder_camera=CameraConfig(
                         rgb=False,
