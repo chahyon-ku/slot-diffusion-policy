@@ -33,7 +33,8 @@ def encoder():
         nn.Flatten(1, 2), # B x H*W x C+2
     )
 
-def encoder_resnet18():
+def encoder_resnet18(image_size=(128, 128)):
+    latent_size = ((image_size[1] // 8), (image_size[0] // 8))
     resnet18 = torchvision.models.resnet18(pretrained=False, norm_layer=partial(nn.GroupNorm, 32))
     return nn.Sequential(
         nn.Conv2d(3, 64, 3, 1, 1),
@@ -44,7 +45,7 @@ def encoder_resnet18():
         resnet18.layer2,
         resnet18.layer3,
         resnet18.layer4,
-        ConcatGrid((16, 16), (-1, 1)), # B x C+2 x H x W,
+        ConcatGrid(latent_size, (-1, 1)), # B x C+2 x H x W,
         Permute(0, 2, 3, 1), # B x H x W x C+2
         nn.Flatten(1, 2), # B x H*W x C+2
     )

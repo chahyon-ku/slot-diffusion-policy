@@ -1,5 +1,14 @@
 import torch.nn as nn
-from slot_diffusion_policy.model.slot.util import ConcatGrid, ConcatRelGrid, ProjectAdd, Permute, SpatialBroadcast
+from slot_diffusion_policy.model.slot.util import ConcatGrid, ConcatRelGrid, ProjectAdd, Permute, SpatialBroadcast, AttentionPool
+from torch.nn import Flatten
+
+def decoder_attentionpool(num_slots):
+    # (B, N, S)
+    return AttentionPool(num_slots, 64, 1)
+
+def decoder_flatten():
+    # (B, N, S)
+    return Flatten()
 
 
 def decoder_sa(num_slots, image_size=(128, 128)):
