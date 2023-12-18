@@ -26,7 +26,7 @@ class RlbenchImageEnv(gym.Env):
         self.render_cache = None
         self.has_reset_before = False
 
-        self.task_env = None# env.get_task(CloseJar)
+        self.task_env = None
         
         # setup spaces
         action_shape = shape_meta['action']['shape']

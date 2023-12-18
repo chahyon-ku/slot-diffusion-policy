@@ -26,8 +26,6 @@ shape_meta: &shape_meta
     shape: [8]
 
 env_runner:
-  # _target_: diffusion_policy.env_runner.pusht_image_runner.PushTImageRunner
-  # _target_: slot_diffusion_policy.lib.sdp_diffusion_policy.diffusion_policy.env_runner.pusht_image_runner.PushTImageRunner
   _target_: slot_diffusion_policy.rlbench_image_runner.RlbenchImageRunner
   shape_meta: *shape_meta
   n_train: 5
@@ -36,7 +34,7 @@ env_runner:
   n_test: 5
   n_test_vis: 5
   legacy_test: True
-  test_start_seed: 100000
+  test_start_seed: 10000
   max_steps: 300
   n_obs_steps: ${n_obs_steps}
   n_action_steps: ${n_action_steps}
@@ -45,10 +43,9 @@ env_runner:
   n_envs: null
 
 dataset:
-  # _target_: diffusion_policy.dataset.pusht_image_dataset.PushTImageDataset
   _target_: slot_diffusion_policy.rlbench_image_dataset.RlbenchImageDataset
   # Make sure this is consistent with the dataset you want to be using
-  zarr_path: data/rlbench_128/train/close_jar/all_variations/data.zarr
+  zarr_path: data/rlbench_128/train/close_jar/variation00/data.zarr
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}
