@@ -46,7 +46,8 @@ policy:
       _target_: slot_diffusion_policy.model.slot.autoencoder.SlotImageEncoder
       encoder:
         _target_: slot_diffusion_policy.model.slot.encoder.encoder_resnet18
-        image_size: [288, 216]
+        # image_size: [288, 216]
+        image_size: [192, 128]
       slot_attention:
         _target_: slot_diffusion_policy.model.slot.slot_attention.SlotAttention
         in_features: 512
@@ -57,8 +58,8 @@ policy:
         learnable_slots: True
       decoder:
         _target_: slot_diffusion_policy.model.slot.decoder.decoder_flatten
-    resize_shape: [240, 320]
-    crop_shape: [216, 288] # ch, cw 240x320 90%
+    resize_shape: [128, 192]
+    crop_shape: null # [192, 128] # ch, cw 240x320 90%
     random_crop: True
     use_group_norm: True
     share_rgb_model: False
@@ -88,7 +89,7 @@ ema:
   max_value: 0.9999
 
 dataloader:
-  batch_size: 16
+  batch_size: 32
   num_workers: 8
   shuffle: True
   pin_memory: True
@@ -125,7 +126,7 @@ training:
   # training loop control
   # in epochs
   rollout_every: 50
-  checkpoint_every: 50
+  checkpoint_every: 10
   val_every: 1
   sample_every: 5
   # steps per epoch

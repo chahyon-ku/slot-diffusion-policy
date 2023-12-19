@@ -1,7 +1,8 @@
 name: real_image
 
-image_shape: [3, 240, 320]
-dataset_path: data/pusht_real
+# image_shape: [3, 240, 320]
+image_shape: [3, 128, 192]
+dataset_path: data/demo_pusht_slots
 
 shape_meta: &shape_meta
   # acceptable types: rgb, low_dim
