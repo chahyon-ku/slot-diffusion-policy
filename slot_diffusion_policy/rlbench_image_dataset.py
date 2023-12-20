@@ -93,12 +93,12 @@ class RlbenchImageDataset(BaseImageDataset):
         action = sample['action'].astype(np.float32)
         if self.rot_6d:
             trans, rot, gripper = np.split(state, [3, 7], axis=-1)
-            rot = Rotation.from_quat(rot).as_matrix()
+            rot = Rotation.from_quat(rot[..., [1, 2, 3, 0]]).as_matrix()
             rot_x, rot_y = rot[..., 0], rot[..., 1]
             state = np.concatenate([trans, rot_x, rot_y, gripper], axis=-1)
             
             trans, rot, gripper = np.split(action, [3, 7], axis=-1)
-            rot = Rotation.from_quat(rot).as_matrix()
+            rot = Rotation.from_quat(rot[..., [1, 2, 3, 0]]).as_matrix()
             rot_x, rot_y = rot[..., 0], rot[..., 1]
             action = np.concatenate([trans, rot_x, rot_y, gripper], axis=-1)
         data = {

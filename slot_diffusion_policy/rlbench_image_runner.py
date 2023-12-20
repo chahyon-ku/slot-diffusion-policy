@@ -237,7 +237,7 @@ class RlbenchImageRunner(BaseImageRunner):
                     rot = np.stack([rot_x, rot_y, rot_z], axis=-1) # (B, T, 3, 3)
                     B, T = rot.shape[:2]
                     rot = rot.reshape(B*T, 3, 3)
-                    rot = Rotation.from_matrix(rot).as_quat() # (B*T, 4)
+                    rot = Rotation.from_matrix(rot).as_quat()[..., [3, 0, 1, 2]] # (B*T, 4)
                     rot = rot.reshape(B, T, 4)
                     # print('rot.shape expected: (B, T, 4), actual:', rot.shape)
                     # input()

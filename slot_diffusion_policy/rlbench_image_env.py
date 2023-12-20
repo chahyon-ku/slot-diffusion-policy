@@ -74,7 +74,7 @@ class RlbenchImageEnv(gym.Env):
         obs = dict()
         if self.rot_6d:
             trans, rot, gripper = raw_obs['gripper_pose'][..., :3], raw_obs['gripper_pose'][..., 3:], [raw_obs['gripper_open']]
-            rot = Rotation.from_quat(rot).as_matrix()
+            rot = Rotation.from_quat(rot[..., [1, 2, 3, 0]]).as_matrix()
             rot_x, rot_y = rot[..., 0], rot[..., 1]
             obs['state'] = np.concatenate([trans, rot_x, rot_y, gripper], axis=-1)
         else:
