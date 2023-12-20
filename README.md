@@ -18,7 +18,7 @@ wget https://www.coppeliarobotics.com/files/V4_1_0/CoppeliaSim_Edu_V4_1_0_Ubuntu
 tar -xf CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
 git clone https://github.com/stepjam/PyRep.git
 # git clone -b peract https://github.com/MohitShridhar/RLBench
-git clone git@github.com:chahyon-ku/RLBench.git # private
+git clone git@github.com:chahyon-ku/RLBench.git # private?
 git clone -b peract https://github.com/MohitShridhar/YARR.git
 pip install --no-deps -e ./PyRep/
 pip install --no-deps -e ./RLBench
@@ -27,6 +27,10 @@ pip install --no-deps -e ./YARR
 # DiffusionPolicy
 git clone git@github.com:real-stanford/diffusion_policy.git
 pip install --no-deps -e ./diffusion_policy
+
+# Install PyTorch3d
+mamba install -c fvcore -c iopath -c conda-forge fvcore iopath
+mamba install pytorch3d -c pytorch3d
 ```
 
 ### Add to .bashrc

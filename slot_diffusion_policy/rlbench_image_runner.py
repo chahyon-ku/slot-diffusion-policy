@@ -23,12 +23,17 @@ from rlbench.action_modes.arm_action_modes import EndEffectorPoseViaIK
 from rlbench.action_modes.gripper_action_modes import Discrete
 from rlbench.observation_config import ObservationConfig, CameraConfig
 from rlbench.tasks import CloseJar
+from scipy.spatial.transform.rotation import Rotation
 
 
 class RlbenchImageRunner(BaseImageRunner):
     def __init__(self,
             output_dir,
             shape_meta:dict,
+            action_mode,
+            rgbd: bool,
+            rot_6d: bool,
+            obs_config,
             n_train=10,
             n_train_vis=3,
             train_start_seed=0,
@@ -50,43 +55,14 @@ class RlbenchImageRunner(BaseImageRunner):
         super().__init__(output_dir)
         if n_envs is None:
             n_envs = n_train + n_test
+        self.rot_6d = rot_6d
 
         steps_per_render = max(10 // fps, 1)
         def env_fn():
             rlbench_env = Environment(
-                action_mode=MoveArmThenGripper(
-                    arm_action_mode=EndEffectorPoseViaIK(),
-                    gripper_action_mode=Discrete()
-                ),
+                action_mode=action_mode,
                 dataset_root='',
-                obs_config=ObservationConfig(
-                    left_shoulder_camera=CameraConfig(
-                        rgb=False,
-                        depth=False,
-                        mask=False,
-                    ),
-                    right_shoulder_camera=CameraConfig(
-                        rgb=False,
-                        depth=False,
-                        mask=False,
-                    ),
-                    overhead_camera=CameraConfig(
-                        rgb=False,
-                        depth=False,
-                        mask=False,
-                    ),
-                    wrist_camera=CameraConfig(
-                        rgb=True,
-                        depth=False,
-                        mask=False,
-                    ),
-                    front_camera=CameraConfig(
-                        rgb=True,
-                        depth=False,
-                        mask=False,
-                        image_size=(render_size, render_size),
-                    ),
-                ),
+                obs_config=obs_config,
                 headless=True,
             )
             # rlbench_taskenv = rlbench_env.get_task(CloseJar)
@@ -94,6 +70,8 @@ class RlbenchImageRunner(BaseImageRunner):
                 VideoRecordingWrapper(
                     RlbenchImageEnv(
                         env=rlbench_env,
+                        rgbd=rgbd,
+                        rot_6d=rot_6d,
                         shape_meta=shape_meta,
                         render_obs_key='front_rgb',
                     ),
@@ -251,6 +229,23 @@ class RlbenchImageRunner(BaseImageRunner):
                     lambda x: x.detach().to('cpu').numpy())
 
                 action = np_action_dict['action']
+                if self.rot_6d:
+                    trans, rot_x, rot_y, gripper = action[..., :3], action[..., 3:6], action[..., 6:9], action[..., [9]]
+                    rot_x /= np.linalg.norm(rot_x, axis=-1, keepdims=True) # normalize x column
+                    rot_y /= np.linalg.norm(rot_y, axis = -1, keepdims=True) # normalize y column
+                    rot_z = np.cross(rot_x, rot_y) # compute z column via cross product
+                    rot = np.stack([rot_x, rot_y, rot_z], axis=-1) # (B, T, 3, 3)
+                    B, T = rot.shape[:2]
+                    rot = rot.reshape(B*T, 3, 3)
+                    rot = Rotation.from_matrix(rot).as_quat() # (B*T, 4)
+                    rot = rot.reshape(B, T, 4)
+                    # print('rot.shape expected: (B, T, 4), actual:', rot.shape)
+                    # input()
+                else:
+                    trans, rot, gripper = action[..., :3], action[..., 3:7], action[..., [7]]
+                    rot /= np.linalg.norm(rot, axis=-1, keepdims=True)
+                action = np.concatenate([trans, rot, gripper], axis=-1)
+                
 
                 # step env
                 obs, reward, done, info = env.step(action)

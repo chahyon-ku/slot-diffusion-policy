@@ -2,7 +2,7 @@
 
 name: close_jar_image
 
-image_shape: &image_shape [3, 128, 128]
+image_shape: &image_shape [3, 256, 256]
 shape_meta: &shape_meta
   # acceptable types: rgb, low_dim
   obs:
@@ -57,13 +57,13 @@ env_runner:
       rgb: True
       depth: False
       mask: False
-      # image_size: [128, 128]
+      image_size: [256, 256]
     front_camera:
       _target_: rlbench.observation_config.CameraConfig
       rgb: True
       depth: False
       mask: False
-      # image_size: [128, 128]
+      image_size: [256, 256]
   n_train: 5
   n_train_vis: 5
   train_start_seed: 0
@@ -77,14 +77,12 @@ env_runner:
   fps: 10
   past_action: ${past_action_visible}
   n_envs: null
-  rgbd: False
 
 dataset:
   _target_: slot_diffusion_policy.rlbench_image_dataset.RlbenchImageDataset
   # Make sure this is consistent with the dataset you want to be using
   # zarr_path: data/rlbench_128/train/close_jar/variation00/data.zarr
-  # zarr_path: data/rlbench_128/train/close_jar/variation00/data.zarr2
-  zarr_path: data/rlbench_128/train/close_jar/variation00/rgbd.zarr
+  zarr_path: data/rlbench_256/train/close_jar/variation00/data.zarr
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}
@@ -93,4 +91,3 @@ dataset:
   max_train_episodes: 90
   # Should be consistent with the rgb views found in the training set
   rgb_views: ['front_rgb', 'wrist_rgb'] #['front_rgb', 'left_shoulder_rgb', 'right_shoulder_rgb']
-  rgbd: False

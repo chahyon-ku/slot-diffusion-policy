@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from  slot_diffusion_policy.model.slot.util import ConcatGrid, ProjectAdd, Permute
@@ -66,3 +67,15 @@ def encoder_resnet34(image_size=(128, 128)):
         Permute(0, 2, 3, 1), # B x H x W x C+2
         nn.Flatten(1, 2), # B x H*W x C+2
     )
+
+
+def get_resnet_rgbd(name):
+    """
+    name: resnet18, resnet34, resnet50
+    """
+    func = getattr(torchvision.models, name)
+    resnet = func()
+    resnet.conv1 = nn.Conv2d(4, 64, kernel_size=7, stride=2, padding=3, bias=False)
+    nn.init.kaiming_normal_(resnet.conv1.weight, mode="fan_out", nonlinearity="relu")
+    resnet.fc = torch.nn.Identity()
+    return resnet

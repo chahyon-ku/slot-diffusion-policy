@@ -37,9 +37,8 @@ policy:
     _target_: diffusion_policy.model.vision.multi_image_obs_encoder.MultiImageObsEncoder
     shape_meta: ${shape_meta}
     rgb_model:
-      _target_: diffusion_policy.model.vision.model_getter.get_resnet
+      _target_: slot_diffusion_policy.model.slot.encoder.get_resnet_rgbd
       name: resnet18
-      weights: null
     resize_shape: null
     crop_shape: [76, 76]
     random_crop: True

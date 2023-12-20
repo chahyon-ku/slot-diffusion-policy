@@ -2,7 +2,7 @@
 
 name: close_jar_image
 
-image_shape: &image_shape [3, 128, 128]
+image_shape: &image_shape [4, 128, 128]
 shape_meta: &shape_meta
   # acceptable types: rgb, low_dim
   obs:
@@ -55,15 +55,16 @@ env_runner:
     wrist_camera:
       _target_: rlbench.observation_config.CameraConfig
       rgb: True
-      depth: False
+      depth: True
       mask: False
       # image_size: [128, 128]
     front_camera:
       _target_: rlbench.observation_config.CameraConfig
       rgb: True
-      depth: False
+      depth: True
       mask: False
       # image_size: [128, 128]
+  rgbd: True
   n_train: 5
   n_train_vis: 5
   train_start_seed: 0
@@ -77,7 +78,6 @@ env_runner:
   fps: 10
   past_action: ${past_action_visible}
   n_envs: null
-  rgbd: False
 
 dataset:
   _target_: slot_diffusion_policy.rlbench_image_dataset.RlbenchImageDataset
@@ -92,5 +92,5 @@ dataset:
   val_ratio: 0 # Set this to 0 for now since the eval environment hasn't been set up yet
   max_train_episodes: 90
   # Should be consistent with the rgb views found in the training set
-  rgb_views: ['front_rgb', 'wrist_rgb'] #['front_rgb', 'left_shoulder_rgb', 'right_shoulder_rgb']
-  rgbd: False
+  rgb_views: ['front_rgb', 'wrist_rgb', 'front_depth', 'wrist_depth'] #['front_rgb', 'left_shoulder_rgb', 'right_shoulder_rgb']
+  rgbd: True

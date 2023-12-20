@@ -10,21 +10,26 @@ from diffusion_policy.common.sampler import (
 from diffusion_policy.model.common.normalizer import LinearNormalizer
 from diffusion_policy.dataset.base_dataset import BaseImageDataset
 from diffusion_policy.common.normalize_util import get_image_range_normalizer
+from scipy.spatial.transform import Rotation
 
 class RlbenchImageDataset(BaseImageDataset):
     def __init__(self,
             zarr_path,
+            rgbd: bool,
+            rot_6d: bool,
             horizon=1,
             pad_before=0,
             pad_after=0,
             seed=42,
             val_ratio=0.0,
             max_train_episodes=None,
-            rgb_views = ['front_rgb']
+            rgb_views = ['front_rgb'],
             ):
         super().__init__()
 
         self.rgb_obs_keys = rgb_views
+        self.rgbd = rgbd
+        self.rot_6d = rot_6d
 
         # TODO: MATCH the keys with the views found in the zarr file you want to use
         keys = ['state', 'action'] + self.rgb_obs_keys
@@ -86,6 +91,16 @@ class RlbenchImageDataset(BaseImageDataset):
         state = sample['state'].astype(np.float32)
         # front_rgb = (sample['front_rgb'] / 255).transpose(0, 3, 1, 2).astype(np.float32)
         action = sample['action'].astype(np.float32)
+        if self.rot_6d:
+            trans, rot, gripper = np.split(state, [3, 7], axis=-1)
+            rot = Rotation.from_quat(rot).as_matrix()
+            rot_x, rot_y = rot[..., 0], rot[..., 1]
+            state = np.concatenate([trans, rot_x, rot_y, gripper], axis=-1)
+            
+            trans, rot, gripper = np.split(action, [3, 7], axis=-1)
+            rot = Rotation.from_quat(rot).as_matrix()
+            rot_x, rot_y = rot[..., 0], rot[..., 1]
+            action = np.concatenate([trans, rot_x, rot_y, gripper], axis=-1)
         data = {
             'obs': {
                 'state': state, # T, 8
@@ -94,7 +109,13 @@ class RlbenchImageDataset(BaseImageDataset):
             'action': action # T, 8
         }
         for key in self.rgb_obs_keys:
-            data['obs'][key] = (sample[key] / 255).transpose(0, 3, 1, 2).astype(np.float32) # T, 3, 128, 128
+            if 'rgb' in key:
+                if self.rgbd:
+                    rgb = sample[key]
+                    depth = sample[key.replace('rgb', 'depth')]
+                    data['obs'][key] = np.concatenate([rgb, depth], axis=1)
+                else:
+                    data['obs'][key] = sample[key] # T, 3, 128, 128
 
         return data
     

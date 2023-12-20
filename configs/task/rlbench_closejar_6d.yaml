@@ -20,10 +20,10 @@ shape_meta: &shape_meta
     #   shape: *image_shape
     #   type: rgb
     state:
-      shape: [8]
+      shape: [10]
       type: low_dim
   action:
-    shape: [8]
+    shape: [10]
 
 env_runner:
   _target_: slot_diffusion_policy.rlbench_image_runner.RlbenchImageRunner
@@ -78,6 +78,7 @@ env_runner:
   past_action: ${past_action_visible}
   n_envs: null
   rgbd: False
+  rot_6d: True
 
 dataset:
   _target_: slot_diffusion_policy.rlbench_image_dataset.RlbenchImageDataset
@@ -94,3 +95,4 @@ dataset:
   # Should be consistent with the rgb views found in the training set
   rgb_views: ['front_rgb', 'wrist_rgb'] #['front_rgb', 'left_shoulder_rgb', 'right_shoulder_rgb']
   rgbd: False
+  rot_6d: True

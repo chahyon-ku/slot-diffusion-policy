@@ -19,6 +19,9 @@ shape_meta: &shape_meta
     # right_shoulder_rgb:
     #   shape: *image_shape
     #   type: rgb
+    overhead_rgb:
+      shape: *image_shape
+      type: rgb
     state:
       shape: [8]
       type: low_dim
@@ -49,21 +52,22 @@ env_runner:
       mask: False
     overhead_camera:
       _target_: rlbench.observation_config.CameraConfig
-      rgb: False
+      rgb: True
       depth: False
       mask: False
+      # image_size: *image_shape
     wrist_camera:
       _target_: rlbench.observation_config.CameraConfig
       rgb: True
       depth: False
       mask: False
-      # image_size: [128, 128]
+      # image_size: *image_shape
     front_camera:
       _target_: rlbench.observation_config.CameraConfig
       rgb: True
       depth: False
       mask: False
-      # image_size: [128, 128]
+      # image_size: *image_shape
   n_train: 5
   n_train_vis: 5
   train_start_seed: 0
@@ -77,14 +81,11 @@ env_runner:
   fps: 10
   past_action: ${past_action_visible}
   n_envs: null
-  rgbd: False
 
 dataset:
   _target_: slot_diffusion_policy.rlbench_image_dataset.RlbenchImageDataset
   # Make sure this is consistent with the dataset you want to be using
-  # zarr_path: data/rlbench_128/train/close_jar/variation00/data.zarr
-  # zarr_path: data/rlbench_128/train/close_jar/variation00/data.zarr2
-  zarr_path: data/rlbench_128/train/close_jar/variation00/rgbd.zarr
+  zarr_path: data/rlbench_128/train/close_jar/variation00/data.zarr
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}
@@ -92,5 +93,4 @@ dataset:
   val_ratio: 0 # Set this to 0 for now since the eval environment hasn't been set up yet
   max_train_episodes: 90
   # Should be consistent with the rgb views found in the training set
-  rgb_views: ['front_rgb', 'wrist_rgb'] #['front_rgb', 'left_shoulder_rgb', 'right_shoulder_rgb']
-  rgbd: False
+  rgb_views: ['front_rgb', 'wrist_rgb', 'overhead_rgb'] #['front_rgb', 'left_shoulder_rgb', 'right_shoulder_rgb']

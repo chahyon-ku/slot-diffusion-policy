@@ -7,12 +7,15 @@ from omegaconf import OmegaConf
 from rlbench.environment import Environment
 from rlbench.task_environment import TaskEnvironment
 from rlbench.tasks import CloseJar
+from scipy.spatial.transform import Rotation
 
 
 class RlbenchImageEnv(gym.Env):
     def __init__(self, 
         env: Environment,
         shape_meta: dict,
+        rgbd: bool,
+        rot_6d: bool,
         init_state: Optional[np.ndarray]=None,
         render_obs_key='agentview_image',
         ):
@@ -25,6 +28,8 @@ class RlbenchImageEnv(gym.Env):
         self.shape_meta = shape_meta
         self.render_cache = None
         self.has_reset_before = False
+        self.rgbd = rgbd
+        self.rot_6d = rot_6d
 
         self.task_env = None
         
@@ -67,10 +72,22 @@ class RlbenchImageEnv(gym.Env):
         self.render_cache = raw_obs[self.render_obs_key] #.transpose(2, 0, 1)
 
         obs = dict()
-        obs['state'] = np.concatenate([raw_obs['gripper_pose'], [raw_obs['gripper_open']]])
+        if self.rot_6d:
+            trans, rot, gripper = raw_obs['gripper_pose'][..., :3], raw_obs['gripper_pose'][..., 3:], [raw_obs['gripper_open']]
+            rot = Rotation.from_quat(rot).as_matrix()
+            rot_x, rot_y = rot[..., 0], rot[..., 1]
+            obs['state'] = np.concatenate([trans, rot_x, rot_y, gripper], axis=-1)
+        else:
+            obs['state'] = np.concatenate([raw_obs['gripper_pose'], [raw_obs['gripper_open']]])
         for key in self.shape_meta['obs'].keys():
             if key.endswith('rgb'):
-                obs[key] = raw_obs[key]
+                if self.rgbd:
+                    rgb = raw_obs[key].transpose(2, 0, 1)
+                    depth = raw_obs[key.replace('rgb', 'depth')][None]
+                    # print(rgb.shape, depth.shape)
+                    obs[key] = np.concatenate([rgb, depth])
+                else:
+                    obs[key] = raw_obs[key]
         return obs
 
     def seed(self, seed=None):
@@ -84,13 +101,10 @@ class RlbenchImageEnv(gym.Env):
         np.random.seed(seed=self._seed)
         desc, raw_obs = self.task_env.reset()
 
-        # return obs
         obs = self.get_observation(raw_obs)
         return obs
     
     def step(self, action):
-        action[3:7] /= np.linalg.norm(action[3:7])
-        action[7] = np.clip(action[7], 0, 1)
         raw_obs, reward, done = self.task_env.step(action)
         obs = self.get_observation(raw_obs)
         return obs, reward, done, {}
